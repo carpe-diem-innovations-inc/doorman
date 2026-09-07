@@ -28,6 +28,10 @@ So: a padlock in your tray, a small window of codes, click to copy. That's the w
   after you quit it you get it back with `Win` → type "doorman" → Enter.
 - **One instance only.** Launching it again — from Start, or by logging on while it runs —
   brings the existing window to the front instead of adding a second padlock.
+- **It remembers where you put it.** Drag the window anywhere and it opens there next
+  time — saved shortly after you stop moving it, and again when you close or quit, so a
+  logoff or a crash doesn't lose it. If the monitor it was on is gone, it starts fresh
+  rather than opening off-screen.
 
 ## What it deliberately doesn't do
 

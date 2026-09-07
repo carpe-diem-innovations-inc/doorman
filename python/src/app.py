@@ -12,6 +12,7 @@ UI state lives in %LOCALAPPDATA%\\doorman (prefs.py) so a reorder never needs su
 """
 
 import argparse
+import ctypes
 import os
 import sys
 import threading
@@ -84,6 +85,63 @@ def _log(msg, exc=False):
                 fh.write(traceback.format_exc())
     except Exception:
         pass                    # logging must never be the thing that breaks it
+
+
+# ------------------------------------------------------- where the window sits
+
+def virtual_screen():
+    """The whole virtual desktop as (left, top, width, height) - ALL monitors.
+
+    ‼‼ TK CANNOT ANSWER THIS AND THE OBVIOUS CALL IS WRONG. `winfo_screenwidth()`
+    and `winfo_screenheight()` report the PRIMARY MONITOR ONLY, so validating a
+    saved position against them would drag the window off his second or third
+    display and back onto the first - "fixing" a position that was never broken.
+    He runs three panels, so that is the normal case here, not an edge case.
+
+    ‼ AND COORDINATES GO NEGATIVE: a monitor placed left of or above the primary
+    one has negative x/y on Windows. Any check that assumes 0,0 is the top-left
+    of the desktop is wrong on an ordinary layout.
+
+    `SM_*VIRTUALSCREEN` covers the union of every monitor. Returns None if the
+    call fails, which the caller must read as "cannot judge" and leave the saved
+    position alone rather than discard it.
+    """
+    try:
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN = 76, 77
+        SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN = 78, 79
+        rect = (user32.GetSystemMetrics(SM_XVIRTUALSCREEN),
+                user32.GetSystemMetrics(SM_YVIRTUALSCREEN),
+                user32.GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                user32.GetSystemMetrics(SM_CYVIRTUALSCREEN))
+        if rect[2] <= 0 or rect[3] <= 0:
+            return None
+        return rect
+    except Exception:
+        return None
+
+
+def position_reachable(pos, margin=80):
+    """Is a saved (x, y) still somewhere he could grab the window?
+
+    `margin` is how much of the window's top-left must fall inside the desktop -
+    enough that the title area is on screen and draggable. A position that fails
+    this is DISCARDED rather than clamped: he moved that window somewhere
+    deliberately, and quietly relocating it is worse than letting Tk place it
+    fresh, because a clamped position looks like the app forgot.
+
+    ‼ Returns True when the desktop cannot be measured. Unknown is not a reason
+    to throw away his saved position.
+    """
+    if not pos:
+        return False
+    rect = virtual_screen()
+    if rect is None:
+        return True
+    left, top, width, height = rect
+    x, y = pos
+    return (left - margin) <= x <= (left + width - margin) and \
+           (top - margin) <= y <= (top + height - margin)
 
 
 def _fatal(msg):
@@ -160,6 +218,15 @@ class Window:
             root.attributes("-toolwindow", True)
         except tk.TclError:
             pass                                    # non-Windows: harmless
+
+        self._pos_job = None
+        self.restore_position()
+        # ‼ SAVE ON MOVE, DEBOUNCED - not only on exit. He asked for "saves its
+        # coordinates on exit", and exit alone would lose the position to a
+        # logoff, a crash, or a kill, which is the case a tray app hits most.
+        # <Configure> fires on every drag step, so the write is deferred and
+        # coalesced rather than run per pixel.
+        root.bind("<Configure>", self._position_changed)
 
         self.mono = tkfont.Font(family="Consolas", size=20, weight="bold")
         self.name_font = tkfont.Font(family="Segoe UI", size=9)
@@ -429,12 +496,82 @@ class Window:
         self.root.after(200, self.tick)
 
     def show(self):
+        # ‼ THE POSITION IS APPLIED HERE, AND A CONSTRUCTION-TIME CALL ALONE WAS
+        # NOT ENOUGH - MEASURED 2026-09-07. `main()` withdraws the root BEFORE the
+        # Window is built, so the geometry request made during `__init__` belongs
+        # to a window that has never been mapped, and it did not survive the first
+        # map: with `pos` = [1444, 377] on disk and correctly judged reachable, the
+        # window still appeared at 2131,289 - which is exactly the horizontal
+        # CENTRE of his 5120-wide desktop, i.e. a default placement, not our value.
+        # Setting it immediately before `deiconify()` is the moment that holds, and
+        # it costs nothing because `restore_position()` is a no-op when nothing is
+        # saved.
+        self.restore_position()
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
 
     def hide(self):
+        self.save_position()                # BEFORE withdrawing - see save_position
         self.root.withdraw()
+
+    # ------------------------------------------------------ window position
+
+    def _position_changed(self, _event=None):
+        """Debounce a move into one write ~700 ms after he stops dragging."""
+        if self._pos_job is not None:
+            try:
+                self.root.after_cancel(self._pos_job)
+            except (tk.TclError, ValueError):
+                pass
+        try:
+            self._pos_job = self.root.after(700, self.save_position)
+        except tk.TclError:
+            self._pos_job = None
+
+    def save_position(self):
+        """Persist where he put the window. Cheap, and a no-op when nothing moved.
+
+        ‼ THE ORDER MATTERS IN `hide()`: this must run BEFORE `withdraw()`.
+        `winfo_x/y` on a withdrawn window report a stale or zeroed position, so
+        saving after withdrawing would write a coordinate he never chose - and it
+        would look exactly like the bug this feature is meant to fix.
+        """
+        try:
+            if not self.root.winfo_viewable():
+                return                  # not on screen: any coordinate now is a lie
+            pos = [self.root.winfo_x(), self.root.winfo_y()]
+        except tk.TclError:
+            return                      # window already destroyed
+        if pos == self.ui.get("pos"):
+            return                      # unchanged: never rewrite prefs for nothing
+        self.ui["pos"] = pos
+        try:
+            prefs.save(self.ui)
+        except OSError:
+            pass                        # a failed position write is not worth a dialog
+
+    def restore_position(self):
+        """Put the window back where he left it, if that is still somewhere real."""
+        pos = self.ui.get("pos")
+        if not pos:
+            return                      # never saved: let Tk place it, which is correct
+        if not position_reachable(pos):
+            # ‼ DISCARDED, NOT CLAMPED. He has three panels and one of them is
+            # physically shared with another box, so a monitor genuinely does come
+            # and go here - and a position nudged back onto the primary display
+            # reads as "it forgot again", which is the complaint, not the fix.
+            _log("saved position %r is off the current desktop - letting Tk place it" % (pos,))
+            self.ui["pos"] = None
+            try:
+                prefs.save(self.ui)
+            except OSError:
+                pass
+            return
+        try:
+            self.root.geometry("+%d+%d" % (pos[0], pos[1]))
+        except tk.TclError:
+            pass
 
 
 # ----------------------------------------------------------------------- CLI
@@ -512,9 +649,18 @@ def cmd_smoke():
     """
     import tempfile
 
+    global LOG_PATH
+
     probe = os.path.join(tempfile.gettempdir(), "doorman_smoke.dpapi")
     store.STORE_PATH = probe
     prefs.PREFS_PATH = os.path.join(tempfile.gettempdir(), "doorman_smoke_prefs.json")
+    # ‼ REDIRECT THE LOG TOO, NOT JUST THE PREFS. `LOG_PATH` is computed at import
+    # from the REAL prefs directory, so redirecting `prefs.PREFS_PATH` alone left
+    # `--smoke` writing its off-desktop test value into his live startup log -
+    # measured 2026-09-07, and it made a test artifact read as a real event. This
+    # function's own docstring promises it never touches real state; the log is
+    # real state.
+    LOG_PATH = os.path.join(tempfile.gettempdir(), "doorman_smoke_startup.log")
     known = "JBSWY3DPEHPK3PXP"                      # RFC/Google documentation secret
     accounts = [
         {"issuer": "Zebra", "name": "z@x", "secret": known, "algorithm": "SHA1",
@@ -570,6 +716,84 @@ def cmd_smoke():
         print("custom persisted %s" % after)
         if after != ["Zebra", "Alpha"]:
             failures.append("custom order did not persist %r" % after)
+
+        # ---- window position: the part he asked for, and the multi-monitor guard
+        rect = virtual_screen()
+        print("virtual desktop  %s" % (rect,))
+        if rect is None:
+            failures.append("virtual_screen() returned None on Windows")
+        else:
+            left, top, width, height = rect
+            inside = [left + 50, top + 50]
+            if not position_reachable(inside):
+                failures.append("a position inside the desktop was judged unreachable: %r" % inside)
+            # ‼ far off the RIGHT of the whole virtual desktop, not merely off the
+            # primary monitor - the check must span every panel, which is the entire
+            # reason it does not use winfo_screenwidth()
+            outside = [left + width + 5000, top + 50]
+            if position_reachable(outside):
+                failures.append("an off-desktop position was judged reachable: %r" % outside)
+            print("reach check      inside OK, off-desktop rejected OK")
+
+        # a withdrawn window must NOT record a position - see save_position
+        w.ui["pos"] = None
+        w.save_position()
+        if w.ui["pos"] is not None:
+            failures.append("save_position wrote %r for a withdrawn window" % (w.ui["pos"],))
+        print("withdrawn no-save OK")
+
+        # a reachable saved position round-trips through prefs and is applied
+        if rect is not None:
+            want = [rect[0] + 120, rect[1] + 90]
+            w.ui["pos"] = want
+            prefs.save(w.ui)
+            if prefs.load()["pos"] != want:
+                failures.append("position did not persist: %r" % prefs.load()["pos"])
+            w.restore_position()
+            if w.ui["pos"] != want:
+                failures.append("restore_position discarded a reachable position")
+            # and an unreachable one is DISCARDED rather than clamped
+            w.ui["pos"] = [rect[0] + rect[2] + 5000, rect[1] + 50]
+            w.restore_position()
+            if w.ui["pos"] is not None:
+                failures.append("restore_position kept an off-desktop position: %r" % (w.ui["pos"],))
+            print("position persist OK (reachable kept, off-desktop discarded)")
+
+        # ‼ AND THE CHAIN THAT ACTUALLY MATTERS: MOVE -> <Configure> -> debounce ->
+        # SAVE, with the event loop PUMPED. The checks above only exercise the
+        # helpers; this is the one that proves the feature works, and it exists
+        # because an external Win32 `MoveWindow` did NOT persist a position while
+        # a Tk-side move does - so the first instrument said "broken" about
+        # working code. Pump the loop, do not sleep past it.
+        if rect is not None:
+            root.deiconify()
+            root.update()
+            w.ui["pos"] = None
+            prefs.save(w.ui)
+            root.geometry("+%d+%d" % (rect[0] + 220, rect[1] + 160))
+            deadline = time.time() + 4
+            while time.time() < deadline and prefs.load().get("pos") is None:
+                root.update()
+                time.sleep(0.05)
+            landed = prefs.load().get("pos")
+            print("move persisted   %s" % (landed,))
+            if landed is None:
+                failures.append("a move never persisted a position through <Configure>")
+            elif abs(landed[0] - (rect[0] + 220)) > 40 or abs(landed[1] - (rect[1] + 160)) > 40:
+                failures.append("persisted position %r is not where the window was put" % (landed,))
+
+            # and hide() must persist too - that is the path the X button takes
+            w.ui["pos"] = None
+            prefs.save(w.ui)
+            root.geometry("+%d+%d" % (rect[0] + 300, rect[1] + 240))
+            root.update()
+            w.hide()
+            if prefs.load().get("pos") is None:
+                failures.append("hide() did not persist the position")
+            print("hide persisted   %s" % (prefs.load().get("pos"),))
+
+        w.ui["pos"] = None
+        prefs.save(w.ui)
 
         w.toggle_lock()
         if not prefs.load()["locked"]:
@@ -701,11 +925,22 @@ def main(argv=None):
         _fatal("The window could not be built.")
         return 1
 
+    def _quit(*_):
+        # ‼ SAVE THE POSITION BEFORE TEARING DOWN. The X button routes through
+        # `hide()`, which saves - but Quit from the tray menu does not touch the
+        # window at all, so without this the one path he explicitly asked about
+        # ("saves its coordinates on exit") would be the one that dropped them.
+        def teardown():
+            window.save_position()
+            icon.stop()
+            root.destroy()
+        root.after(0, teardown)
+
     icon = pystray.Icon(
         "doorman", _icon_image(), "doorman",
         menu=pystray.Menu(
             pystray.MenuItem("Open", lambda *_: root.after(0, window.show), default=True),
-            pystray.MenuItem("Quit", lambda *_: root.after(0, lambda: (icon.stop(), root.destroy()))),
+            pystray.MenuItem("Quit", _quit),
         ),
     )
 

@@ -14,7 +14,14 @@ PREFS_PATH = os.environ.get(
     os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "doorman", "prefs.json"),
 )
 
-DEFAULTS = {"sort": "name", "order": [], "locked": False, "topmost": True}
+DEFAULTS = {"sort": "name", "order": [], "locked": False, "topmost": True, "pos": None}
+
+# ‼ `pos` IS `None` UNTIL HE MOVES THE WINDOW, AND None MEANS "LET TK PLACE IT".
+# A default of [0, 0] would look harmless and would pin every first run to the
+# top-left corner - a saved position and "no saved position" must not be the
+# same value. Whether a stored position is still REACHABLE is a screen question,
+# not a preferences one: this module validates the SHAPE, `app.py` owns the
+# multi-monitor check.
 
 
 def key(acct):
@@ -40,6 +47,23 @@ def load(path=None):
         out["order"] = []
     out["locked"] = bool(out["locked"])
     out["topmost"] = bool(out["topmost"])
+    out["pos"] = _clean_pos(out["pos"])
+    return out
+
+
+def _clean_pos(value):
+    """A saved position is exactly two ints, or None. Anything else is None.
+
+    ‼ `bool` IS A SUBCLASS OF `int` IN PYTHON, so a naive isinstance check
+    accepts `[True, False]` as a coordinate pair. Rejected explicitly.
+    """
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    out = []
+    for n in value:
+        if isinstance(n, bool) or not isinstance(n, int):
+            return None
+        out.append(n)
     return out
 
 
@@ -109,7 +133,8 @@ if __name__ == "__main__":
         save({"sort": "custom", "order": ["a", "b"], "locked": True}, probe)
         back = load(probe)
         print("round-trip       %s" % back)
-        expected = {"sort": "custom", "order": ["a", "b"], "locked": True, "topmost": True}
+        expected = {"sort": "custom", "order": ["a", "b"], "locked": True,
+                    "topmost": True, "pos": None}
         if back != expected:
             failures.append("round-trip %r != %r" % (back, expected))
         if set(back) != set(DEFAULTS):
@@ -118,6 +143,20 @@ if __name__ == "__main__":
         print("absent -> defaults %s" % missing)
         if missing != DEFAULTS:
             failures.append("absent defaults %r" % missing)
+        # a real position survives a round trip, including negative coordinates -
+        # ‼ a monitor left of or above the primary one has NEGATIVE x/y on Windows,
+        # so rejecting negatives would break the most ordinary multi-monitor layout
+        save({"pos": [-1200, -340]}, probe)
+        if load(probe)["pos"] != [-1200, -340]:
+            failures.append("negative position did not survive: %r" % load(probe)["pos"])
+        print("negative pos     OK")
+
+        for bad in ([1], [1, 2, 3], "10,20", [True, False], [1.5, 2.5], {"x": 1}, None):
+            save({"pos": bad}, probe)
+            if load(probe)["pos"] is not None:
+                failures.append("malformed pos %r accepted as %r" % (bad, load(probe)["pos"]))
+        print("malformed pos    all rejected to None OK")
+
         with open(probe, "w", encoding="utf-8") as fh:
             fh.write("{not json")
         broken = load(probe)

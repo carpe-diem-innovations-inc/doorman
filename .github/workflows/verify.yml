@@ -53,3 +53,5 @@ jobs:
                     Where-Object { $_ -notmatch 'verify:allow-path' })
           if ($hits.Count) { $hits; throw 'estate paths present in tracked files' }
           Write-Output 'clean'
+          # git grep exits 1 when it finds nothing; end the step deterministically
+          exit 0

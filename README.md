@@ -22,7 +22,12 @@ So: a padlock in your tray, a small window of codes, click to copy. That's the w
 - One row per account: issuer, name, the code, a countdown ring.
 - **Click a row to copy** the code.
 - **`A→Z`** sorts by name · **drag a row** for your own order · **`🔓/🔒`** freezes it.
-- **`☐ logon`** starts it with Windows · **`📌`** always-on-top · **`–`** back to the tray.
+- **`☐ logon`** starts it with Windows · **`☐ in Start`** puts it in the Start Menu ·
+  **`📌`** always-on-top · **`–`** back to the tray.
+- **Quit isn't a one-way door.** Tick `☐ in Start` and `doorman` is in the Start Menu, so
+  after you quit it you get it back with `Win` → type "doorman" → Enter.
+- **One instance only.** Launching it again — from Start, or by logging on while it runs —
+  brings the existing window to the front instead of adding a second padlock.
 
 ## What it deliberately doesn't do
 
@@ -145,6 +150,23 @@ Entirely optional; the app behaves the same either way.
 | `app.py --import FILE` | import from a file of otpauth URIs |
 | `app.py --list` | list account names (never the secrets) |
 | `app.py --smoke` | self-check the window logic |
+| `app.py --install-shortcut` | put doorman in the Start Menu and exit |
+| `app.py --remove-shortcut` | take it out again |
+
+## If it doesn't start
+
+There is a log, and it exists because of a real failure: doorman is launched by
+`pythonw.exe`, which has **no console** — and a Python error produces no Windows crash
+report either. So a startup failure used to leave *nothing at all* behind: no icon, no
+window, no log. You could not tell "it never started" from "it started and died."
+
+```
+%LOCALAPPDATA%\doorman\startup.log
+```
+
+Every launch appends what it got through — the store, the window, the tray — so the last
+line names the phase that failed. A failure that gets that far also puts a dialog on
+screen rather than vanishing.
 
 ## Security notes, stated plainly
 
@@ -172,7 +194,7 @@ Written down rather than discovered:
 Every module self-checks when run directly:
 
 ```powershell
-foreach ($m in 'totp','import_ga','store','prefs','startup') {
+foreach ($m in 'totp','import_ga','store','prefs','startup','instance','shortcut') {
     .venv\Scripts\python.exe python\src\$m.py
 }
 .venv\Scripts\python.exe python\src\app.py --smoke
@@ -188,13 +210,15 @@ the ordering, the lock, and the logon toggle.
 ```
 doorman/
   python/
-    src/     totp.py  store.py  import_ga.py  prefs.py  startup.py  app.py
+    src/     totp.py  store.py  import_ga.py  prefs.py  startup.py
+             instance.py  shortcut.py  app.py
     requirements.txt
 ```
 
-`totp.py`, `store.py`, `import_ga.py`, `prefs.py` and `startup.py` import nothing outside
-the standard library. Only `app.py` has dependencies. That's on purpose — the parts that
-touch your secrets are small enough to read in full.
+`totp.py`, `store.py`, `import_ga.py`, `prefs.py`, `startup.py`, `instance.py` and
+`shortcut.py` import nothing outside the standard library. Only `app.py` has
+dependencies. That's on purpose — the parts that touch your secrets are small enough to
+read in full.
 
 ## License
 

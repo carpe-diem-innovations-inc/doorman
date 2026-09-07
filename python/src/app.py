@@ -15,6 +15,8 @@ import argparse
 import os
 import sys
 import threading
+import time
+import traceback
 import tkinter as tk
 from tkinter import font as tkfont
 
@@ -22,7 +24,9 @@ from PIL import Image, ImageDraw
 import pystray
 
 import import_ga
+import instance
 import prefs
+import shortcut
 import startup
 import store
 import totp
@@ -36,6 +40,64 @@ COPIED = "#5fb35f"
 ROW_BG = "#24242a"
 ROW_DRAG = "#33333c"
 DRAG_THRESHOLD = 6          # px before a press becomes a drag rather than a click
+
+TRAY_ATTEMPTS = 5           # Shell_NotifyIcon can lose a race with the shell at logon
+TRAY_RETRY_SEC = 2.0
+LOG_MAX_BYTES = 64 * 1024
+
+
+# --------------------------------------------------------------- startup log
+
+LOG_PATH = os.path.join(os.path.dirname(prefs.PREFS_PATH), "startup.log")
+
+
+def _log(msg, exc=False):
+    """Append one stamped line to the startup log. Never raises.
+
+    ‼‼ THIS IS THE FIX FOR A BUG THAT HAD NO EVIDENCE, AND THAT ABSENCE WAS THE
+    REAL DEFECT. He logged out, logged back in, and doorman was not there. The
+    Run value was correct and still is; the entry was not disabled in
+    `StartupApproved`; the identical command launches and survives when run by
+    hand. But under `pythonw.exe` there is NO CONSOLE, and a Python exception
+    produces no Windows Error Reporting entry either - so a startup failure at
+    logon left nothing anywhere: no icon, no window, no log, no crash dump.
+    ‼ THE APP WAS UNFALSIFIABLE. "It did not launch" and "it launched and died"
+    are different faults pointing at different places, and nothing on the box
+    could tell them apart.
+
+    Canon's own rule - a deliberately visible failure beats a confident wrong
+    answer, the same instrument as `!! PULSE COMPUTE EMPTY` - applied to a GUI
+    process that has no stderr to fail into.
+    """
+    try:
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+        # bounded, because a log that grows forever is a second defect
+        try:
+            if os.path.getsize(LOG_PATH) > LOG_MAX_BYTES:
+                os.replace(LOG_PATH, LOG_PATH + ".1")
+        except OSError:
+            pass
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write("%s  %s\n" % (stamp, msg))
+            if exc:
+                fh.write(traceback.format_exc())
+    except Exception:
+        pass                    # logging must never be the thing that breaks it
+
+
+def _fatal(msg):
+    """Log a startup failure AND put it on his screen, because a tray app that
+    dies silently is indistinguishable from one that was never started."""
+    _log("FATAL " + msg, exc=True)
+    try:
+        from tkinter import messagebox
+        messagebox.showerror(
+            "doorman could not start",
+            "%s\n\nDetails were written to:\n%s" % (msg, LOG_PATH),
+        )
+    except Exception:
+        pass
 
 
 # ----------------------------------------------------------------- tray icon
@@ -51,6 +113,27 @@ def _icon_image():
     d.ellipse((28, 36, 36, 44), fill=dark)                               # keyhole
     d.polygon([(30, 42), (34, 42), (33, 52), (31, 52)], fill=dark)
     return img
+
+
+def _icon_file():
+    """Write the padlock out as a real `.ico` so the Start Menu shortcut wears it.
+
+    ‼ The repo still ships no asset - this is GENERATED into
+    `%LOCALAPPDATA%\\doorman\\` on demand, the same padlock `_icon_image()`
+    draws for the tray. `shortcut.py` stays standard-library only and takes the
+    path as an argument, so the drawing dependency lives here where Pillow
+    already is. Returns None on failure; a shortcut with pythonw's icon is ugly
+    and works, which is not worth failing over.
+    """
+    try:
+        target = os.path.join(os.path.dirname(prefs.PREFS_PATH), "doorman.ico")
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        _icon_image().save(target, format="ICO",
+                           sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64)])
+        return target
+    except Exception:
+        _log("could not write the .ico for the shortcut", exc=True)
+        return None
 
 
 # --------------------------------------------------------------------- window
@@ -126,6 +209,11 @@ class Window:
         self.logon_btn.pack(side="left", padx=(6, 0))
         self.logon_btn.bind("<Button-1>", lambda _e: self.toggle_logon())
 
+        self.shortcut_btn = tk.Label(bar, bg=ROW_BG, fg=FG, font=self.btn_font,
+                                     padx=8, pady=3, cursor="hand2")
+        self.shortcut_btn.pack(side="left", padx=(6, 0))
+        self.shortcut_btn.bind("<Button-1>", lambda _e: self.toggle_shortcut())
+
         # right-hand pair. Minimize exists because -toolwindow removes the titlebar's
         # own minimize button, so without this the only way back to the tray is the X.
         self.min_btn = tk.Label(bar, text="–", bg=ROW_BG, fg=MUTED, font=self.btn_font,
@@ -151,6 +239,11 @@ class Window:
         on = startup.is_enabled()
         self.logon_btn.config(text=("\u2611" if on else "\u2610") + " logon",
                               fg=COPIED if on else MUTED)
+        # \u203c same rule: read the FILESYSTEM, not a cached flag. If he deletes the
+        # shortcut from Start by hand the checkbox must tell the truth next time.
+        sc = shortcut.exists()
+        self.shortcut_btn.config(text=("\u2611" if sc else "\u2610") + " in Start",
+                                 fg=COPIED if sc else MUTED)
         top = bool(self.ui.get("topmost", True))
         self.top_btn.config(text="\U0001f4cc on top" if top else "\U0001f4cc off",
                             fg=ACCENT if top else MUTED)
@@ -268,6 +361,24 @@ class Window:
         """Add or remove the per-user Run value. No elevation, no prefs entry -
         the registry IS the state, so there is nothing to keep in sync."""
         startup.toggle()
+        self._refresh_chrome()
+
+    def toggle_shortcut(self):
+        """Add or remove the Start Menu shortcut - the way back in after Quit.
+
+        No prefs entry: the shortcut file IS the state, so there is nothing to
+        keep in sync. Same contract as the logon toggle above.
+        """
+        try:
+            shortcut.toggle(icon=_icon_file())
+        except Exception as exc:                                # noqa: BLE001
+            _log("shortcut toggle failed: %s" % exc, exc=True)
+            try:
+                from tkinter import messagebox
+                messagebox.showerror("doorman", "Could not change the Start Menu "
+                                                "shortcut:\n\n%s" % exc)
+            except Exception:
+                pass
         self._refresh_chrome()
 
     def toggle_topmost(self):
@@ -538,6 +649,10 @@ def main(argv=None):
                     help="use this secrets store instead of the default "
                          "(overrides DOORMAN_STORE; an explicit flag survives the "
                          "process-environment inheritance that an env var does not)")
+    ap.add_argument("--install-shortcut", action="store_true",
+                    help="put doorman in the Start Menu and exit")
+    ap.add_argument("--remove-shortcut", action="store_true",
+                    help="remove the Start Menu shortcut and exit")
     args = ap.parse_args(argv)
 
     if args.store:
@@ -551,11 +666,40 @@ def main(argv=None):
         return cmd_list()
     if args.smoke:
         return cmd_smoke()
+    if args.install_shortcut:
+        print(shortcut.create(icon=_icon_file()))
+        return 0
+    if args.remove_shortcut:
+        print("removed" if shortcut.remove() else "none present")
+        return 0
 
-    accounts = [import_ga.split_label(a) for a in store.load()]
-    root = tk.Tk()
-    root.withdraw()
-    window = Window(root, accounts)
+    _log("start pid=%d exe=%s store=%s" % (os.getpid(), sys.executable, store.STORE_PATH))
+
+    # ‼ ONE LIVE INSTANCE. Doorman is now reachable from the logon Run entry AND
+    # from the Start Menu, so a double launch is ordinary rather than a mistake -
+    # and without this it produces two padlocks reading the same store. A second
+    # launch is not an error to report: it is him asking to SEE the window, which
+    # is exactly what clicking a shortcut means.
+    if not instance.acquire():
+        _log("another instance is live - signalling it to surface, exiting 0")
+        instance.signal_show()
+        return 0
+
+    try:
+        accounts = [import_ga.split_label(a) for a in store.load()]
+        _log("store loaded: %d account(s)" % len(accounts))
+    except Exception:
+        _fatal("The secrets store could not be read:\n%s" % store.STORE_PATH)
+        return 1
+
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        window = Window(root, accounts)
+        _log("window built")
+    except Exception:
+        _fatal("The window could not be built.")
+        return 1
 
     icon = pystray.Icon(
         "doorman", _icon_image(), "doorman",
@@ -564,8 +708,54 @@ def main(argv=None):
             pystray.MenuItem("Quit", lambda *_: root.after(0, lambda: (icon.stop(), root.destroy()))),
         ),
     )
-    threading.Thread(target=icon.run, daemon=True).start()
+
+    def _run_tray():
+        """Own the tray icon, and never fail silently doing it.
+
+        ‼ THE OLD FORM WAS `Thread(target=icon.run, daemon=True)` WITH NO
+        HANDLER, AND THAT IS A SILENT-FAILURE MACHINE: if `icon.run` raises,
+        the daemon thread dies unheard while `root.mainloop()` keeps running
+        against a WITHDRAWN window - a live process with no tray icon and
+        nothing on screen. Indistinguishable from "it did not launch."
+
+        ‼ WHY IT RETRIES: adding a tray icon is `Shell_NotifyIcon`, which
+        needs the shell's tray window to exist. At logon the Run entry can fire
+        before the taskbar is ready, and the call fails. Stated as the leading
+        HYPOTHESIS for the logout/login failure, NOT as a proven cause - the
+        startup log is what will settle it at the next logon. The retry is
+        worth having either way, because it costs nothing when the shell is up.
+
+        ‼ AND IF IT NEVER COMES UP, THE APP SHOWS ITS WINDOW INSTEAD OF
+        HIDING: no icon plus no window is the one outcome that must not happen.
+        """
+        for attempt in range(1, TRAY_ATTEMPTS + 1):
+            try:
+                icon.run()
+                _log("tray loop ended normally")
+                return
+            except Exception:
+                _log("tray attempt %d/%d failed" % (attempt, TRAY_ATTEMPTS), exc=True)
+                time.sleep(TRAY_RETRY_SEC)
+        _log("tray never came up after %d attempts - showing the window instead"
+             % TRAY_ATTEMPTS)
+        try:
+            root.after(0, window.show)
+        except Exception:
+            pass
+
+    def _surface():
+        # ‼ LOGGED, because during the 0.2 work the signal could be seen leaving
+        # and NOT seen arriving - the sender logged "signalling it to surface"
+        # and the receiver logged nothing, so a working path and a swallowed
+        # callback looked identical. Both ends of a handoff get a line.
+        _log("show requested by a second launch")
+        root.after(0, window.show)
+
+    threading.Thread(target=_run_tray, daemon=True, name="doorman-tray").start()
+    instance.watch_show(_surface)
+    _log("running")
     root.mainloop()
+    _log("exit")
 
 
 if __name__ == "__main__":

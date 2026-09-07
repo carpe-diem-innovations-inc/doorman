@@ -1,5 +1,7 @@
 # doorman
 
+[![verify](https://github.com/carpe-diem-innovations-inc/doorman/actions/workflows/verify.yml/badge.svg)](https://github.com/carpe-diem-innovations-inc/doorman/actions/workflows/verify.yml)
+
 **Your 2FA codes on your Windows desktop. Click one, it's on your clipboard.**
 
 Tired of reaching for your phone to type six digits into the machine you're already
@@ -193,11 +195,33 @@ Written down rather than discovered:
 - **The window doesn't scroll.** Deliberate; see above.
 - **The tray icon can't be covered by tests.** Everything below it is.
 
-## Tests
+## Verification
 
-Every module self-checks when run directly:
+This is an app that holds the second factor for every account you put in it. You should not
+have to take our word for anything, so nothing here asks you to.
+
+**Every push is verified before it lands**, in three stages, in this order:
+
+| stage | what it proves | where |
+|---|---|---|
+| **works** | every module's own self-check plus the window smoke test | locally, then again in CI |
+| **safe** | no secrets, no machine-local paths, a declared licence, a clean tree | locally, and asserted again in CI |
+| **elsewhere** | the same suite passes on a machine that is not the author's | [GitHub Actions, `windows-latest`](../../actions/workflows/verify.yml) |
+
+The runner is Windows on purpose: the store uses DPAPI and the tray uses `Shell_NotifyIcon`,
+so a Linux runner would be verifying something this app never runs on.
+
+`.verify/receipt.json` records the result of the last run — which tree was checked, which
+stages passed, and on which machine. It attests a hash of the repository contents *excluding
+itself*, so it cannot be quietly reused for a tree it never saw. If the contents change, the
+receipt no longer matches and the push is refused.
+
+### Reproduce it yourself
 
 ```powershell
+python -m venv .venv
+.venv\Scripts\pip.exe install -r requirements.txt
+
 foreach ($m in 'totp','import_ga','store','prefs','startup','instance','shortcut') {
     .venv\Scripts\python.exe python\src\$m.py
 }
@@ -208,6 +232,10 @@ foreach ($m in 'totp','import_ga','store','prefs','startup','instance','shortcut
 "does it match the specification's own answers", not "does it emit six digits". `--smoke`
 builds the window against a throwaway store and asserts the rendered code, the clipboard,
 the ordering, the lock, and the logon toggle.
+
+**What is not covered:** the tray icon itself. `pystray` owns a message loop and there is no
+headless way to click an icon, so that one part is verified by running it. Everything below
+the tray — where a crash would actually reach you — is covered.
 
 ## Layout
 

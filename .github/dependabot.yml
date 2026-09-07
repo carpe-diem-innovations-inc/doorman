@@ -1,0 +1,53 @@
+# Dependency policy for doorman.
+#
+# !! THIS POLICY IS DELIBERATELY THE OPPOSITE OF THE ONE IN THE FORENSICS REPOSITORY, and the
+#    difference is the point rather than an inconsistency.
+#
+# There, runtime pins are a reproduction contract and are never auto-bumped, because changing
+# one can alter a published result. Here there is nothing to reproduce - doorman is a tool that
+# holds the second factor for every account you put in it. Staleness is the risk, not change.
+#
+# Pillow is the one to think about. doorman draws its tray icon with it at runtime, and image
+# decoders are a long-running source of memory-safety bugs. A known-vulnerable decoder inside a
+# process that also holds decrypted TOTP seeds is a real attack path, not a theoretical one. So
+# updates land promptly and nothing is ignored.
+#
+# The store itself is the reason the bar is here: possession of the decrypted blob is possession
+# of every code the operator has. See the security notes in the README.
+
+version: 2
+
+updates:
+  # ---- Python ----------------------------------------------------------------------------
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    # No ignore list, on purpose. Every pull request still has to pass the full verification
+    # workflow on a clean Windows runner before it can reach the default branch, so an update
+    # that breaks the code generator, the store round-trip or the window smoke test cannot
+    # land quietly.
+
+  # ---- GitHub Actions --------------------------------------------------------------------
+  # The workflow is what proves a change works on a machine that is not the author's. An
+  # abandoned or compromised action runs with access to this repository, so these stay current.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build(ci)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"

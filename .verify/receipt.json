@@ -2,57 +2,62 @@
   "schema": "gatekeeper/0.1",
   "repo": "carpe-diem-innovations-inc/doorman",
   "visibility": "PUBLIC",
-  "head": "54224affc87b6194da082dff3b1db2e981f86a6f",
-  "content_id": "bf9c84bffbef9dc747778d0e2d477cdbeb7f685cedd7a7bd7d8e2d61520d603b",
-  "branch": "verify/readme",
-  "verified_at": "2026-09-07T15:56:04.5174665-04:00",
-  "box": "CRADLE",
+  "visibility_assumed": false,
+  "head": "d95e3f10375f8cfaae0774114340928fd6e90d06",
+  "content_id": "28b0262ed768006f199a64438f3900755ca0f3cfd0216835cadc4459cb4547bf",
+  "branch": "ci/dependabot-policy",
+  "verified_at": "2026-09-07T19:48:06.9857335-04:00",
+  "ran_on": "windows-26100.9168",
   "stages": {
     "works": {
-      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
       "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
+      "status": "pass",
+      "proved_on": "windows-26100.9168",
       "exit": 0,
-      "status": "pass"
+      "timed_out": false,
+      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke"
     },
     "safe": {
+      "status": "fail",
+      "proved_on": "windows-26100.9168",
       "checks": [
         {
-          "status": "pass",
           "hits": [],
-          "name": "no_secrets"
+          "name": "no_secrets",
+          "status": "pass"
         },
         {
-          "status": "pass",
           "hits": [],
-          "name": "no_estate_paths"
+          "name": "no_estate_paths",
+          "status": "pass"
         },
         {
-          "detail": "LICENSE present",
-          "status": "pass",
-          "name": "licence_declared"
+          "hits": [],
+          "name": "no_machine_names",
+          "status": "pass"
         },
         {
-          "dirty_files": 0,
+          "name": "licence_declared",
           "status": "pass",
-          "name": "tree_clean"
+          "detail": "LICENSE present"
         },
         {
-          "detail": "README carries a verification section and the CI badge",
+          "dirty_files": 1,
+          "name": "tree_clean",
+          "status": "fail"
+        },
+        {
+          "name": "verification_documented",
           "status": "pass",
-          "name": "verification_documented"
+          "detail": "README carries a verification section and the CI badge"
         }
-      ],
-      "status": "pass"
+      ]
     },
     "elsewhere": {
-      "runs": [
-        {
-          "workflow": "verify",
-          "conclusion": "success",
-          "url": "https://github.com/carpe-diem-innovations-inc/doorman/actions/runs/34157398836"
-        }
-      ],
-      "status": "pass"
+      "sha": "d95e3f10375f8cfaae0774114340928fd6e90d06",
+      "reason": "no CI run recorded for d95e3f10375f8cfaae0774114340928fd6e90d06",
+      "status": "pending",
+      "proved_on": null
     }
   }
 }

@@ -2,28 +2,28 @@
   "schema": "gatekeeper/0.1",
   "repo": "carpe-diem-innovations-inc/doorman",
   "visibility": "PUBLIC",
-  "head": "ef3855ec63aa60aabaf8361837265cf92044664c",
+  "head": "54224affc87b6194da082dff3b1db2e981f86a6f",
   "content_id": "bf9c84bffbef9dc747778d0e2d477cdbeb7f685cedd7a7bd7d8e2d61520d603b",
   "branch": "verify/readme",
-  "verified_at": "2026-09-07T15:54:56.2788146-04:00",
+  "verified_at": "2026-09-07T15:56:04.5174665-04:00",
   "box": "CRADLE",
   "stages": {
     "works": {
-      "exit": 0,
       "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
       "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
+      "exit": 0,
       "status": "pass"
     },
     "safe": {
       "checks": [
         {
-          "hits": [],
           "status": "pass",
+          "hits": [],
           "name": "no_secrets"
         },
         {
-          "hits": [],
           "status": "pass",
+          "hits": [],
           "name": "no_estate_paths"
         },
         {
@@ -45,9 +45,14 @@
       "status": "pass"
     },
     "elsewhere": {
-      "reason": "no CI run recorded for ef3855ec63aa60aabaf8361837265cf92044664c",
-      "sha": "ef3855ec63aa60aabaf8361837265cf92044664c",
-      "status": "pending"
+      "runs": [
+        {
+          "workflow": "verify",
+          "conclusion": "success",
+          "url": "https://github.com/carpe-diem-innovations-inc/doorman/actions/runs/34157398836"
+        }
+      ],
+      "status": "pass"
     }
   }
 }

@@ -2,20 +2,19 @@
   "schema": "gatekeeper/0.1",
   "repo": "carpe-diem-innovations-inc/doorman",
   "visibility": "PUBLIC",
-  "head": "d917c82fc31ef5dbc07444e16f98601b2c432c15",
+  "head": "f8811f30a04c51a04b35206d08d783e0a4bfc990",
   "content_id": "eac333bdd61b75b429246584d48d54c1337df4fb92300431780461cd9f7e7fd8",
   "branch": "verify/scope",
-  "verified_at": "2026-09-07T15:27:00.6845194-04:00",
+  "verified_at": "2026-09-07T15:28:27.1841353-04:00",
   "box": "CRADLE",
   "stages": {
     "works": {
-      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
-      "exit": 0,
       "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
-      "status": "pass"
+      "exit": 0,
+      "status": "pass",
+      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK"
     },
     "safe": {
-      "status": "pass",
       "checks": [
         {
           "hits": [],
@@ -28,21 +27,27 @@
           "status": "pass"
         },
         {
-          "detail": "LICENSE present",
           "name": "licence_declared",
-          "status": "pass"
+          "status": "pass",
+          "detail": "LICENSE present"
         },
         {
           "dirty_files": 0,
           "name": "tree_clean",
           "status": "pass"
         }
-      ]
+      ],
+      "status": "pass"
     },
     "elsewhere": {
-      "sha": "d917c82fc31ef5dbc07444e16f98601b2c432c15",
-      "reason": "no CI run recorded for d917c82fc31ef5dbc07444e16f98601b2c432c15",
-      "status": "pending"
+      "status": "pass",
+      "runs": [
+        {
+          "workflow": "verify",
+          "conclusion": "success",
+          "url": "https://github.com/carpe-diem-innovations-inc/doorman/actions/runs/34155660361"
+        }
+      ]
     }
   }
 }

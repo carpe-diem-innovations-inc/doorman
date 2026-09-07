@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.dpapi
+uris.txt
+*.png
+.venv/
+CLAUDE.md

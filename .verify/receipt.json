@@ -3,61 +3,61 @@
   "repo": "carpe-diem-innovations-inc/doorman",
   "visibility": "PUBLIC",
   "visibility_assumed": false,
-  "head": "d95e3f10375f8cfaae0774114340928fd6e90d06",
-  "content_id": "28b0262ed768006f199a64438f3900755ca0f3cfd0216835cadc4459cb4547bf",
+  "head": "8f06422e5f0cda767ce8c8513fe9d1cf5faacae7",
+  "content_id": "ab9f12503c12964f5c29fcbc6e31b83bcfcc7917ef994f0dde9e97fff876a688",
   "branch": "ci/dependabot-policy",
-  "verified_at": "2026-09-07T19:48:06.9857335-04:00",
+  "verified_at": "2026-09-07T19:50:22.6599669-04:00",
   "ran_on": "windows-26100.9168",
   "stages": {
     "works": {
-      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
-      "status": "pass",
-      "proved_on": "windows-26100.9168",
       "exit": 0,
+      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
       "timed_out": false,
-      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke"
+      "status": "pass",
+      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
+      "proved_on": "windows-26100.9168"
     },
     "safe": {
-      "status": "fail",
       "proved_on": "windows-26100.9168",
+      "status": "pass",
       "checks": [
         {
-          "hits": [],
-          "name": "no_secrets",
-          "status": "pass"
-        },
-        {
-          "hits": [],
-          "name": "no_estate_paths",
-          "status": "pass"
-        },
-        {
-          "hits": [],
-          "name": "no_machine_names",
-          "status": "pass"
-        },
-        {
-          "name": "licence_declared",
           "status": "pass",
-          "detail": "LICENSE present"
+          "hits": [],
+          "name": "no_secrets"
         },
         {
-          "dirty_files": 1,
+          "status": "pass",
+          "hits": [],
+          "name": "no_estate_paths"
+        },
+        {
+          "status": "pass",
+          "hits": [],
+          "name": "no_machine_names"
+        },
+        {
+          "detail": "LICENSE present",
+          "status": "pass",
+          "name": "licence_declared"
+        },
+        {
+          "status": "pass",
           "name": "tree_clean",
-          "status": "fail"
+          "dirty_files": 0
         },
         {
-          "name": "verification_documented",
+          "detail": "README carries a verification section and the CI badge",
           "status": "pass",
-          "detail": "README carries a verification section and the CI badge"
+          "name": "verification_documented"
         }
       ]
     },
     "elsewhere": {
-      "sha": "d95e3f10375f8cfaae0774114340928fd6e90d06",
-      "reason": "no CI run recorded for d95e3f10375f8cfaae0774114340928fd6e90d06",
+      "sha": "8f06422e5f0cda767ce8c8513fe9d1cf5faacae7",
+      "proved_on": null,
       "status": "pending",
-      "proved_on": null
+      "reason": "no CI run recorded for 8f06422e5f0cda767ce8c8513fe9d1cf5faacae7"
     }
   }
 }

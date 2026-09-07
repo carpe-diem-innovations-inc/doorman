@@ -1,7 +1,7 @@
 """UI state: sort mode, custom order, order lock. Standard library only.
 
-‼ DELIBERATELY NOT IN THE SECRETS STORE. `B:\\safe\\` is read-only unelevated by
-design, so anything written there would make a preference change cost `sudo`.
+‼ DELIBERATELY NOT IN THE SECRETS STORE. The secrets tier is read-only unelevated by
+design, so anything written there would make a preference change cost elevation.
 This file holds issuer/name keys and a boolean - no secrets - so it lives in the
 ordinary per-user location and is writable by the running app.
 """

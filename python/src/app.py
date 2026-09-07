@@ -1,7 +1,7 @@
 """doorman - a tray icon that opens a small window of sign-in codes. Click one to copy.
 
 Deliberately not a framework: one window, one update loop, no settings screen,
-no cloud, no telemetry. Secrets live in B:\\safe\\ wrapped with DPAPI (store.py);
+no cloud, no telemetry. Secrets live in a DPAPI-wrapped store outside the repo (store.py);
 UI state lives in %LOCALAPPDATA%\\doorman (prefs.py) so a reorder never needs sudo.
 
     python src/app.py                    run in the tray

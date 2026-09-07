@@ -1,0 +1,11 @@
+# doorman runtime dependencies, pinned so a clone reproduces the tested environment.
+#
+# Only app.py needs these: pystray owns the tray icon and pillow draws the padlock at
+# runtime, which is why there is no icon asset in the repo. Every other module
+# (totp, store, import_ga, prefs, startup, instance, shortcut) is standard library by
+# design and self-checks with nothing installed.
+#
+# Tested on Python 3.14.7 (Windows). Windows-only by nature: the store uses DPAPI and
+# the tray uses Shell_NotifyIcon.
+pillow==12.3.0
+pystray==0.19.5

@@ -1,0 +1,5 @@
+{
+  "_comment": "Verification scope for doorman. 'works' runs every module's own self-check plus the window smoke test, exactly as README Tests documents. Uses `python` from PATH so the command is portable to a clean runner; locally activate the venv first. See B:/runners/verify.ps1 and canon disclosure_and_verification.md 2.3.",
+  "works": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
+  "venv": "doorman"
+}

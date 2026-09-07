@@ -1,0 +1,55 @@
+name: verify
+
+# Proves doorman works on a machine that is not the author's.
+#
+# windows-latest is not a preference: the store uses DPAPI and the tray uses
+# Shell_NotifyIcon, so a Linux runner would verify something this app never runs on.
+# A green run here is what lets a push reach the default branch - see .verify/config.json.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pinned dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Module self-checks (standard library only)
+        shell: pwsh
+        run: |
+          $failed = @()
+          foreach ($m in 'totp','import_ga','store','prefs','startup','instance','shortcut') {
+            Write-Output "--- $m ---"
+            python python/src/$m.py
+            if ($LASTEXITCODE -ne 0) { $failed += $m }
+          }
+          if ($failed.Count) { throw "self-check failed: $($failed -join ', ')" }
+
+      - name: Window logic smoke test
+        run: python python/src/app.py --smoke
+
+      - name: No estate paths in tracked files
+        shell: pwsh
+        run: |
+          # canon disclosure_and_verification.md 1: for anything exposed publicly,
+          # segregation must be PROVEN, not assumed - demonstrate the absence of the
+          # path before exposure, not after.
+          $pat = '([A-Za-z]:\\(Users\\Admin|repos|canon|council|safe|records|lab)|B:\\|192\.168\.2\.|10\.100\.0\.)'   # verify:allow-path (this IS the detector)
+          # A scanner whose own pattern lives in the scanned tree flags itself, so a line
+          # may opt out with a `verify:allow-path` marker. Per-line, never per-file: excluding
+          # a whole file would let a real leak hide inside it.
+          $hits = @(git grep -nIE $pat -- $(git ls-files) |
+                    Where-Object { $_ -notmatch 'verify:allow-path' })
+          if ($hits.Count) { $hits; throw 'estate paths present in tracked files' }
+          Write-Output 'clean'

@@ -657,6 +657,106 @@ def cmd_list():
     print(f"\nsort={ui['sort']} locked={ui['locked']} prefs={prefs.PREFS_PATH}")
 
 
+def cmd_soak(seconds, rows=14):
+    """Run the tick loop against temp state for N seconds and report memory growth.
+
+    ‼ THIS EXISTS BECAUSE `--smoke` CANNOT CATCH A LEAK. Smoke builds the window,
+    asserts its logic and exits in under a second; the 0.6 canvas leak needed HOURS
+    to become visible and shipped through a green suite. A gate that measures memory
+    needs a way to run the hot path on demand, and only the repo can provide one
+    safely: launching the real app would hit the single-instance guard and would
+    touch his live store, prefs and tray.
+
+    Reuses `--smoke`'s temp-state redirection for exactly that reason. Prints a
+    private-working-set sample line per second so an external measurer can also read
+    it, and returns non-zero if growth exceeds the estate threshold.
+
+    `rows` defaults to 14 because the leak scaled PER ROW and that is the live
+    account count - a 2-row soak understates a real leak sevenfold.
+    """
+    import ctypes
+    import ctypes.wintypes as wt
+    import tempfile
+    import time
+
+    global LOG_PATH
+
+    class _PMC(ctypes.Structure):
+        _fields_ = [("cb", wt.DWORD), ("PageFaultCount", wt.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+                    ("PrivateUsage", ctypes.c_size_t)]
+
+    _fn = None
+    for _dll, _name in ((ctypes.windll.kernel32, "K32GetProcessMemoryInfo"),
+                        (ctypes.windll.psapi, "GetProcessMemoryInfo")):
+        if hasattr(_dll, _name):
+            _fn = getattr(_dll, _name)
+            _fn.restype, _fn.argtypes = wt.BOOL, [wt.HANDLE, ctypes.POINTER(_PMC), wt.DWORD]
+            break
+    if _fn is None:
+        print("soak FAILED: no GetProcessMemoryInfo export")
+        return 1
+
+    def private_mb():
+        c = _PMC(); c.cb = ctypes.sizeof(_PMC)
+        # ‼ CHECK THE RETURN AND REFUSE A ZERO. An unchecked version of this call
+        # reported 0.0 MB for every variant of the leak bisection - a confident
+        # "nothing leaks" about a process losing 41 MB/h.
+        if not _fn(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(c), c.cb):
+            raise ctypes.WinError()
+        if c.PrivateUsage == 0:
+            raise RuntimeError("PrivateUsage read as 0 - refusing to report it as a measurement")
+        return c.PrivateUsage / (1024.0 * 1024.0)
+
+    probe = os.path.join(tempfile.gettempdir(), "doorman_soak.dpapi")
+    store.STORE_PATH = probe
+    prefs.PREFS_PATH = os.path.join(tempfile.gettempdir(), "doorman_soak_prefs.json")
+    LOG_PATH = os.path.join(tempfile.gettempdir(), "doorman_soak_startup.log")
+    known = "JBSWY3DPEHPK3PXP"
+    accounts = [{"issuer": "Soak%02d" % i, "name": "s%d@x" % i, "secret": known,
+                 "algorithm": "SHA1", "digits": 6, "period": 30} for i in range(rows)]
+    store.save(accounts, probe)
+
+    root = tk.Tk()
+    root.withdraw()
+    w = Window(root, store.load(probe), ui=dict(prefs.DEFAULTS))
+    print("soak: %d row(s), %d s, tick %d ms" % (len(w.rows), seconds, 200))
+
+    samples, t0 = [], time.monotonic()
+    while True:
+        el = time.monotonic() - t0
+        if el >= seconds:
+            break
+        # ‼ DO NOT CALL w.tick() HERE. `Window.__init__` already started the loop and
+        # `tick()` reschedules ITSELF with after(200). Calling it explicitly as well
+        # leaves one extra pending `after` callback per iteration, so the tick rate
+        # climbs without bound and the harness manufactures a leak that looks exactly
+        # like the one it is hunting. Pumping the event loop runs the app's OWN loop
+        # at the production rate, which is also the thing worth measuring.
+        root.update()
+        mb = private_mb()
+        samples.append((el, mb))
+        print("  t+%6.1fs  privateWS = %8.2f MB" % (el, mb), flush=True)
+        time.sleep(0.2)
+
+    root.destroy()
+    # ‼ DISCARD THE FIRST THIRD: fonts, widgets and the Tcl interpreter settle at
+    # start-up, and a rate fitted across that window fails GOOD code.
+    tail = samples[len(samples) // 3:]
+    if len(tail) < 4:
+        print("soak FAILED: too few samples (%d) - raise the duration" % len(samples))
+        return 1
+    span = tail[-1][0] - tail[0][0]
+    grew = tail[-1][1] - tail[0][1]
+    rate = (grew / span) * 60.0 if span > 0 else 0.0
+    print("soak: %.2f MB over %.0f s of steady state = %.3f MB/min" % (grew, span, rate))
+    print("SOAK_RATE_MB_PER_MIN=%.4f" % rate)
+    return 0
+
+
 def cmd_smoke():
     """Headless check of the window logic: build it, tick it, copy, reorder, lock.
 
@@ -886,6 +986,9 @@ def main(argv=None):
     ap.add_argument("--list", action="store_true", help="print stored account names")
     ap.add_argument("--smoke", action="store_true",
                     help="headless check of the window logic against temp state")
+    ap.add_argument("--soak", type=int, metavar="SECONDS", default=None,
+                    help="run the tick loop against temp state for SECONDS and report "
+                         "private-working-set growth (the memory verification stage)")
     ap.add_argument("--store", metavar="PATH",
                     help="use this secrets store instead of the default "
                          "(overrides DOORMAN_STORE; an explicit flag survives the "
@@ -905,6 +1008,8 @@ def main(argv=None):
         return cmd_import(args.import_path)
     if args.list:
         return cmd_list()
+    if args.soak is not None:
+        return cmd_soak(args.soak)
     if args.smoke:
         return cmd_smoke()
     if args.install_shortcut:

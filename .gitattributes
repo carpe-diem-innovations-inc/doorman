@@ -1,0 +1,27 @@
+# ESTATE DEFAULT: LF. Ruled 2026-09-08 and chosen from MEASUREMENT, not preference --
+# the estate was already 410 pure-LF against 319 pure-CRLF, .ps1 alone was 92 LF to
+# 13 CRLF, and mixed-ending files were burning real time on failed edit anchors.
+# A file that is CRLF in one place and LF in another makes any multi-line anchor a
+# coin flip, which is the defect canon already records and this line ends.
+* text=auto eol=lf
+*.ps1  text eol=lf
+*.psm1 text eol=lf
+*.psd1 text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+
+# THE ONE DECLARED EXCEPTION IN THIS ESTATE: .vbs wrappers are launched by wscript,
+# and the convention predates this rule (see the runners repo). Stated, not assumed.
+*.vbs  text eol=crlf
+
+# Binaries pass through byte-for-byte. An EOL rewrite inside one corrupts it, and
+# for anything hashed it would also invalidate the hash for no reason.
+*.png  binary
+*.ico  binary
+*.jpg  binary
+*.pdf  binary
+*.7z   binary
+*.ots  binary
+*.docx binary

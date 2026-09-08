@@ -3,61 +3,69 @@
   "repo": "carpe-diem-innovations-inc/doorman",
   "visibility": "PUBLIC",
   "visibility_assumed": false,
-  "head": "f2ff43cb203f12decb8475debcd6ff630904fff7",
-  "content_id": "d96a53cf3672b6c8b80e7a804777f24dba85ddb7fcaafb64c37df8ee53a207dd",
-  "branch": "fix/tick-canvas-leak",
-  "verified_at": "2026-09-08T16:07:13.7907958-04:00",
+  "head": "cab1b36a2bb5fd5c2314508632366e84a64f8941",
+  "content_id": "71355c053bf9344cfecdfe244f59e9821e79161655787feda91350f68320d035",
+  "branch": "main",
+  "verified_at": "2026-09-08T16:33:12.2211553-04:00",
   "ran_on": "windows-26100.9168",
   "stages": {
-    "works": {
-      "status": "pass",
-      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
-      "proved_on": "windows-26100.9168",
-      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
-      "timed_out": false,
-      "exit": 0
-    },
     "safe": {
+      "status": "fail",
+      "proved_on": "windows-26100.9168",
       "checks": [
         {
-          "hits": [],
+          "status": "pass",
           "name": "no_secrets",
-          "status": "pass"
+          "hits": []
         },
         {
-          "hits": [],
+          "status": "pass",
           "name": "no_estate_paths",
-          "status": "pass"
+          "hits": []
         },
         {
-          "hits": [],
+          "status": "pass",
           "name": "no_machine_names",
-          "status": "pass"
+          "hits": []
         },
         {
-          "detail": "LICENSE present",
+          "status": "pass",
           "name": "licence_declared",
-          "status": "pass"
+          "detail": "LICENSE present"
         },
         {
-          "dirty_files": 0,
+          "status": "fail",
           "name": "tree_clean",
-          "status": "pass"
+          "dirty_files": 8
         },
         {
-          "detail": "README carries a verification section and the CI badge",
+          "status": "pass",
           "name": "verification_documented",
-          "status": "pass"
+          "detail": "README carries a verification section and the CI badge"
         }
-      ],
+      ]
+    },
+    "works": {
+      "evidence": "withdrawn no-save OK\nposition persist OK (reachable kept, off-desktop discarded)\nmove persisted   [220, -607]\nhide persisted   [300, -527]\nlock blocks drag OK\nlogon checkbox   OK\nA-Z button       OK\non-top toggle    OK\nminimize/show    OK\nempty state      OK\n\nwindow smoke OK",
+      "cmd": "python python/src/totp.py && python python/src/import_ga.py && python python/src/store.py && python python/src/prefs.py && python python/src/startup.py && python python/src/instance.py && python python/src/shortcut.py && python python/src/app.py --smoke",
+      "timed_out": false,
+      "exit": 0,
       "proved_on": "windows-26100.9168",
       "status": "pass"
     },
+    "memory": {
+      "soak_sec": 180,
+      "threshold_mb_per_min": 0.1,
+      "reason": "growth -0.0313 MB/min is within 0.1",
+      "proved_on": "windows-26100.9168",
+      "rate_mb_per_min": -0.0313,
+      "status": "pass"
+    },
     "elsewhere": {
-      "sha": "f2ff43cb203f12decb8475debcd6ff630904fff7",
-      "reason": "no CI run recorded for f2ff43cb203f12decb8475debcd6ff630904fff7",
-      "proved_on": null,
-      "status": "pending"
+      "reason": "no CI run recorded for cab1b36a2bb5fd5c2314508632366e84a64f8941",
+      "status": "pending",
+      "sha": "cab1b36a2bb5fd5c2314508632366e84a64f8941",
+      "proved_on": null
     }
   }
 }

@@ -115,7 +115,7 @@ def split_label(entry):
 
 
 def from_otpauth_uri(uri):
-    """Decode a single standard otpauth://totp/... URI."""
+    """Decode a single standard otpauth://totp/... URI."""  # verify:allow-pattern
     parsed = urllib.parse.urlparse(uri)
     if parsed.scheme != "otpauth":
         raise ValueError(f"not an otpauth URI: {parsed.scheme!r}")
@@ -142,7 +142,7 @@ def parse(text):
             continue
         if line.startswith("otpauth-migration://"):
             out.extend(from_migration_uri(line))
-        elif line.startswith("otpauth://"):
+        elif line.startswith("otpauth://"):  # verify:allow-pattern
             out.append(from_otpauth_uri(line))
         else:
             raise ValueError(f"unrecognised line: {line[:40]!r}")
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     # Known-good otpauth URI, and a hand-built migration payload, so both
     # legs are exercised without needing a real export on disk.
     single = from_otpauth_uri(
-        "otpauth://totp/Example:admin@example.com"
+        "otpauth://totp/Example:admin@example.com"  # verify:allow-pattern
         "?secret=JBSWY3DPEHPK3PXP&issuer=Example&digits=6&period=30"
     )
     assert single["secret"] == "JBSWY3DPEHPK3PXP", single

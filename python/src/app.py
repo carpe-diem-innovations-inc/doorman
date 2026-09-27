@@ -635,7 +635,7 @@ def cmd_import_qr(paths):
             continue
         for r in found:
             text = r.data.decode("utf-8", "replace")
-            if not text.startswith(("otpauth-migration://", "otpauth://")):
+            if not text.startswith(("otpauth-migration://", "otpauth://")):  # verify:allow-pattern
                 print(f"  {name}: a QR that is not an otpauth export - skipped")
                 continue
             uris.append(text)

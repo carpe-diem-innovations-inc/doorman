@@ -115,7 +115,7 @@ Then tick **`☐ logon`** in the window and it'll be there after every restart.
 
 ### Already have your secrets as text?
 
-If you have `otpauth://totp/...` URIs (or an `otpauth-migration://` string), put them in
+If you have `otpauth://totp/...` URIs (or an `otpauth-migration://` string), put them in <!-- verify:allow-pattern -->
 a file one per line and use `--import` instead:
 
 ```
